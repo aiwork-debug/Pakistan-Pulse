@@ -1,0 +1,399 @@
+// Pulse news platform: Prisma schema for Supabase Postgres.
+//
+// Connection (set both in .env):
+// - DATABASE_URL: Supabase pooler (port 6543) with ?pgbouncer=true. Used by the app.
+// - DIRECT_URL:   Supabase direct connection (port 5432). Used by `prisma migrate`.
+//
+// Users and passwords live in Supabase Auth (auth.users). Prisma only manages the
+// public schema. Profile.id holds the same uuid as auth.users.id. The foreign key to
+// auth.users and the Row Level Security policies are added with raw SQL (see the
+// notes at the bottom of this file), because Prisma must not manage the auth schema.
+//
+// Role and status columns are text, matching the existing tables in drizzle/.
+// Allowed values are listed on each field.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// People
+// ---------------------------------------------------------------------------
+
+/// One row per Supabase auth user: readers, admins and super admins.
+model Profile {
+  /// Same value as auth.users.id.
+  id             String    @id @db.Uuid
+  /// Lowercase letters, numbers and hyphens, 3-30 characters.
+  username       String    @unique
+  displayName    String    @map("display_name")
+  /// USER | ADMIN | SUPER_ADMIN
+  role           String    @default("USER")
+  /// ACTIVE | SUSPENDED | ARCHIVED
+  status         String    @default("ACTIVE")
+  /// Job title shown on author pages, e.g. "Economics Editor".
+  title          String    @default("")
+  bio            String    @default("")
+  /// Preset key mapped to Tailwind classes in src/lib/gradients.ts.
+  avatarGradient String    @default("teal") @map("avatar_gradient")
+  avatarUrl      String?   @map("avatar_url")
+  lastActiveAt   DateTime? @map("last_active_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  posts               Post[]                  @relation("PostAuthor")
+  postRevisions       PostRevision[]
+  media               Media[]
+  comments            Comment[]
+  moderatedComments   Comment[]               @relation("CommentModerator")
+  bookmarks           Bookmark[]
+  reads               PostRead[]
+  corrections         Correction[]
+  policyUpdates       Policy[]
+  auditEntries        AuditLog[]
+  homepageSlotUpdates HomepageSlot[]
+  contactReplies      ContactMessage[]
+  preferences         NotificationPreference?
+
+  @@index([role, status])
+  @@map("profiles")
+}
+
+/// Per-user email and site preferences.
+model NotificationPreference {
+  profileId          String   @id @map("profile_id") @db.Uuid
+  newsletter         Boolean  @default(false)
+  breakingNews       Boolean  @default(false) @map("breaking_news")
+  commentReplies     Boolean  @default(true) @map("comment_replies")
+  /// Category slugs the user follows.
+  followedCategories String[] @default([]) @map("followed_categories")
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+// ---------------------------------------------------------------------------
+// Content
+// ---------------------------------------------------------------------------
+
+model Category {
+  id          String  @id @default(uuid()) @db.Uuid
+  slug        String  @unique
+  name        String
+  description String
+  /// Order of the category pills.
+  sortOrder   Int     @default(0) @map("sort_order")
+  isActive    Boolean @default(true) @map("is_active")
+
+  posts Post[]
+
+  @@map("categories")
+}
+
+model Tag {
+  id        String   @id @default(uuid()) @db.Uuid
+  slug      String   @unique
+  name      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  posts PostTag[]
+
+  @@map("tags")
+}
+
+model Post {
+  id                String    @id @default(uuid()) @db.Uuid
+  /// Lowercase kebab-case.
+  slug              String    @unique
+  /// 5-160 characters.
+  title             String
+  /// Up to 300 characters; at least 10 once PUBLISHED.
+  dek               String    @default("")
+  categoryId        String?   @map("category_id") @db.Uuid
+  authorId          String    @map("author_id") @db.Uuid
+  /// DRAFT | IN_REVIEW | SCHEDULED | PUBLISHED | ARCHIVED
+  status            String    @default("DRAFT")
+  /// Fallback shown only when a story has no cover image.
+  coverGradient     String    @default("teal") @map("cover_gradient")
+  /// Public URL of the uploaded cover photo. Required once PUBLISHED.
+  coverImageUrl     String?   @map("cover_image_url")
+  coverAlt          String    @default("") @map("cover_alt")
+  /// 1-240.
+  readMinutes       Int       @default(1) @map("read_minutes")
+  /// True when the body contains a youtube or video block (used by /videos).
+  hasVideo          Boolean   @default(false) @map("has_video")
+  isFeatured        Boolean   @default(false) @map("is_featured")
+  allowComments     Boolean   @default(true) @map("allow_comments")
+  /// Shown as "Former contributor" when the author was deleted with archived stories.
+  formerContributor Boolean   @default(false) @map("former_contributor")
+  viewCount         Int       @default(0) @map("view_count")
+  seoTitle          String?   @map("seo_title")
+  seoDescription    String?   @map("seo_description")
+  scheduledFor      DateTime? @map("scheduled_for") @db.Timestamptz
+  publishedAt       DateTime? @map("published_at") @db.Timestamptz
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  category     Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  author       Profile        @relation("PostAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  blocks       PostBlock[]
+  tags         PostTag[]
+  revisions    PostRevision[]
+  comments     Comment[]
+  bookmarks    Bookmark[]
+  reads        PostRead[]
+  corrections  Correction[]
+  homepageSlot HomepageSlot?
+
+  @@index([status, publishedAt(sort: Desc)], map: "posts_status_published_idx")
+  @@index([authorId], map: "posts_author_idx")
+  @@index([categoryId], map: "posts_category_idx")
+  @@index([hasVideo, publishedAt(sort: Desc)])
+  @@map("posts")
+}
+
+model PostTag {
+  postId String @map("post_id") @db.Uuid
+  tagId  String @map("tag_id") @db.Uuid
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+  @@index([tagId])
+  @@map("post_tags")
+}
+
+/// One content block of a post body, in display order.
+model PostBlock {
+  id       String @id @default(uuid()) @db.Uuid
+  postId   String @map("post_id") @db.Uuid
+  position Int
+  /// paragraph | heading | quote | image | youtube | tweet | video
+  type     String
+  /// Block fields; shape depends on `type` (see src/lib/blocks.ts).
+  payload  Json
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, position], map: "post_blocks_post_position_key")
+  @@map("post_blocks")
+}
+
+/// Saved copy of a post each time it is saved in the editor (version history).
+model PostRevision {
+  id        String   @id @default(uuid()) @db.Uuid
+  postId    String   @map("post_id") @db.Uuid
+  editorId  String?  @map("editor_id") @db.Uuid
+  version   Int
+  title     String
+  dek       String
+  /// Full block list at the time of the save.
+  blocks    Json
+  note      String   @default("")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  post   Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  editor Profile? @relation(fields: [editorId], references: [id], onDelete: SetNull)
+
+  @@unique([postId, version])
+  @@map("post_revisions")
+}
+
+/// Public correction notes attached to a story ("Open corrections").
+model Correction {
+  id        String   @id @default(uuid()) @db.Uuid
+  postId    String   @map("post_id") @db.Uuid
+  createdBy String?  @map("created_by") @db.Uuid
+  text      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  post    Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  creator Profile? @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([postId])
+  @@map("corrections")
+}
+
+/// Stories pinned to the homepage. Slot 1 is the hero, slots 2-5 are top stories.
+model HomepageSlot {
+  /// 1-5.
+  slot      Int      @id
+  postId    String   @unique @map("post_id") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  post             Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  updatedByProfile Profile? @relation(fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  @@map("homepage_slots")
+}
+
+model Media {
+  id          String    @id @default(uuid()) @db.Uuid
+  uploaderId  String    @map("uploader_id") @db.Uuid
+  /// Path inside the Supabase Storage bucket.
+  storagePath String    @map("storage_path")
+  publicUrl   String    @map("public_url")
+  mime        String
+  sizeBytes   Int       @map("size_bytes")
+  width       Int?
+  height      Int?
+  altText     String    @default("") @map("alt_text")
+  caption     String    @default("")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  /// Soft delete: the row and file are kept for the audit trail.
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz
+
+  uploader Profile @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+
+  @@index([uploaderId], map: "media_uploader_idx")
+  @@map("media")
+}
+
+// ---------------------------------------------------------------------------
+// Reader activity
+// ---------------------------------------------------------------------------
+
+model Comment {
+  id          String    @id @default(uuid()) @db.Uuid
+  postId      String    @map("post_id") @db.Uuid
+  authorId    String    @map("author_id") @db.Uuid
+  /// Set for replies.
+  parentId    String?   @map("parent_id") @db.Uuid
+  body        String
+  /// PENDING | APPROVED | REJECTED | HIDDEN
+  status      String    @default("PENDING")
+  moderatedBy String?   @map("moderated_by") @db.Uuid
+  moderatedAt DateTime? @map("moderated_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    Profile   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
+  moderator Profile?  @relation("CommentModerator", fields: [moderatedBy], references: [id], onDelete: SetNull)
+
+  @@index([postId, status, createdAt])
+  @@index([authorId])
+  @@map("comments")
+}
+
+/// Saved stories.
+model Bookmark {
+  profileId String   @map("profile_id") @db.Uuid
+  postId    String   @map("post_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  post    Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([profileId, postId])
+  @@index([postId])
+  @@map("bookmarks")
+}
+
+/// Reading history ("stories read" on the account page).
+model PostRead {
+  id        BigInt   @id @default(autoincrement())
+  profileId String   @map("profile_id") @db.Uuid
+  postId    String   @map("post_id") @db.Uuid
+  readAt    DateTime @default(now()) @map("read_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  post    Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, postId])
+  @@index([profileId, readAt(sort: Desc)])
+  @@map("post_reads")
+}
+
+// ---------------------------------------------------------------------------
+// Site
+// ---------------------------------------------------------------------------
+
+model NewsletterSubscriber {
+  id             String    @id @default(uuid()) @db.Uuid
+  email          String    @unique
+  /// PENDING | CONFIRMED | UNSUBSCRIBED
+  status         String    @default("PENDING")
+  confirmToken   String?   @unique @map("confirm_token")
+  confirmedAt    DateTime? @map("confirmed_at") @db.Timestamptz
+  unsubscribedAt DateTime? @map("unsubscribed_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("newsletter_subscribers")
+}
+
+/// Messages from the /contact form.
+model ContactMessage {
+  id         String    @id @default(uuid()) @db.Uuid
+  name       String
+  email      String
+  /// GENERAL | STORY_TIP | CORRECTION_REQUEST | ADVERTISING | TECHNICAL_ISSUE
+  topic      String
+  message    String
+  /// NEW | IN_PROGRESS | RESOLVED | SPAM
+  status     String    @default("NEW")
+  handledBy  String?   @map("handled_by") @db.Uuid
+  resolvedAt DateTime? @map("resolved_at") @db.Timestamptz
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  handler Profile? @relation(fields: [handledBy], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt(sort: Desc)])
+  @@map("contact_messages")
+}
+
+/// Policy pages at /policies/[slug].
+model Policy {
+  /// editorial | corrections | privacy | terms | cookies
+  slug      String   @id
+  title     String
+  body      String
+  updatedBy String?  @map("updated_by") @db.Uuid
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  editor Profile? @relation(fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  @@map("policies")
+}
+
+model AuditLog {
+  id         BigInt   @id @default(autoincrement())
+  actorId    String?  @map("actor_id") @db.Uuid
+  /// ADMIN_CREATED | ADMIN_SUSPENDED | POST_PUBLISHED | POST_UPDATED |
+  /// DRAFT_CREATED | USER_VIEWED_EXPORT | POLICY_UPDATED | ...
+  action     String
+  targetType String   @map("target_type")
+  targetId   String   @map("target_id")
+  metadata   Json     @default("{}")
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  actor Profile? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([action, createdAt(sort: Desc)], map: "audit_log_action_created_idx")
+  @@index([createdAt(sort: Desc)])
+  @@map("audit_log")
+}
+
+// ---------------------------------------------------------------------------
+// After the first migration, run this SQL in the Supabase SQL editor:
+//
+//   alter table public.profiles
+//     add constraint profiles_id_auth_users_fk
+//     foreign key (id) references auth.users(id) on delete cascade;
+//
+// Then enable Row Level Security on every table and add policies
+// (see drizzle/0001_rls_policies.sql for the existing ones).
+// ---------------------------------------------------------------------------

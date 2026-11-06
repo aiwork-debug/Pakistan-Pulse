@@ -30,8 +30,13 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files (never commit real secrets; .env.example is the template)
 .env*
+.env.local
+!.env.example
+
+# demo-mode data (dummy content used until Supabase is connected)
+/.data/
 
 # vercel
 .vercel

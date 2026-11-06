@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+@theme {
+  /* Remove Tailwind's default palette so only the brand colors below can be used. */
+  --color-*: initial;
+
+  /* The three brand colors. */
+  --color-primary: #0f766e;
+  --color-ink: #0f172a;
+  --color-paper: #ffffff;
+
+  /* Shades, not extra colors: a darker primary for hover, and neutral ink/white tints. */
+  --color-primary-hover: #115e59;
+  --color-surface: #f8fafc;
+  --color-border: #e2e8f0;
+  --color-muted: #475569;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-source-serif), ui-serif, Georgia, serif;
+
+  --animate-sheet-down: sheet-down 260ms ease-out both;
+  --animate-fade-up: fade-up 320ms ease-out both;
+
+  @keyframes sheet-down {
+    from {
+      opacity: 0;
+      transform: translateY(-12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-feature-settings: "ss01";
+    text-wrap: balance;
+  }
+
+  /* Belt and braces: every transform animation is also wrapped in motion-safe: in markup. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
