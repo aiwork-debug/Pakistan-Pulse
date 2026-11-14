@@ -12,6 +12,7 @@ const EXPLORE_LINKS = [
   { href: "/", label: "Home" },
   { href: "/news", label: "News" },
   { href: "/videos", label: "Videos" },
+  { href: "/elections", label: "US Elections" },
   { href: "/categories", label: "Categories" },
 ];
 

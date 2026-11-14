@@ -15,6 +15,20 @@
   --color-border: #e2e8f0;
   --color-muted: #475569;
 
+  /* Data colors for the US elections page only: party seats, uncalled seats and record status. */
+  --color-dem: #1b56b0;
+  --color-dem-bar: #2563c9;
+  --color-dem-soft: #e4ecfa;
+  --color-rep: #b81d2b;
+  --color-rep-bar: #d0283a;
+  --color-rep-soft: #f9e2e5;
+  --color-other-bar: #98a2b1;
+  --color-uncalled: #cdd3dc;
+  --color-hist-a: #168095;
+  --color-hist-b: #ba8648;
+  --color-provisional: #935400;
+  --color-provisional-soft: #fdf0d8;
+
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-source-serif), ui-serif, Georgia, serif;
 

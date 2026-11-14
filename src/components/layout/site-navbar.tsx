@@ -16,6 +16,7 @@ const NAV_LINKS: NavLink[] = [
   { href: "/", label: "Home" },
   { href: "/news", label: "News" },
   { href: "/videos", label: "Videos" },
+  { href: "/elections", label: "US Elections" },
   { href: "/categories", label: "Categories" },
   { href: "/admins", label: "Admins" },
   { href: "/about", label: "About" },
