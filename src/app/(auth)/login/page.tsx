@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/auth/login-form";
 import { ToastMessage } from "@/components/ui/toast-message";
-import { isDemoMode } from "@/lib/demo/mode";
-import { DEMO_PASSWORD } from "@/lib/demo/store";
 import { safeNext } from "@/lib/safe-next";
 import { getSession } from "@/lib/session";
 
@@ -41,18 +39,6 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       ) : null}
       {linkError ? (
         <ToastMessage tone="error">That link has expired or was already used. Request a new one.</ToastMessage>
-      ) : null}
-
-      {isDemoMode() ? (
-        <ToastMessage tone="success" title="Demo accounts">
-          <p>
-            Admin: <code>admin@example.com</code>
-            <br />
-            Super admin: <code>super@example.com</code>
-            <br />
-            Password for both: <code>{DEMO_PASSWORD}</code>
-          </p>
-        </ToastMessage>
       ) : null}
 
       <LoginForm next={next} />

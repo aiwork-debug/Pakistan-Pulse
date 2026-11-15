@@ -340,7 +340,7 @@ export function demoInviteAdmin(
   saveDemoState();
   return {
     ok: true,
-    message: `Demo mode: no email was sent. ${values.email} can sign in now with the demo password ${DEMO_PASSWORD}.`,
+    message: `Admin created. ${values.email} can sign in now with the password ${DEMO_PASSWORD}.`,
   };
 }
 

@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import { clsx } from "clsx";
 import { Clapperboard, FolderOpen, Newspaper } from "lucide-react";
 import Link from "next/link";
-import { AdminSlider } from "@/components/feed/admin-slider";
 import { CategoryGrid } from "@/components/feed/category-grid";
 import { DeskSection } from "@/components/feed/desk-section";
 import { EmptyState } from "@/components/feed/empty-state";
+import { FeaturedJournalists } from "@/components/feed/featured-journalists";
 import { SectionHeading } from "@/components/feed/section-heading";
 import { StatTiles } from "@/components/feed/stat-tiles";
 import { StoryCard } from "@/components/feed/story-card";
@@ -18,7 +18,6 @@ import {
   getHomepagePins,
   getLatestPosts,
   getOldestPosts,
-  getPostsByAuthor,
   getSiteStats,
   getVideoItems,
   listPublishedPosts,
@@ -41,6 +40,13 @@ export const metadata: Metadata = {
 
 const container = "mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8";
 const section = "flex flex-col gap-10 py-16 lg:py-24";
+
+/**
+ * The 5 journalist links in the hero panel beside Top stories, in slot order:
+ * 1 = large feature, 2 = button on the feature, 3-5 = cards. Put usernames here to choose
+ * them; any empty slots are filled with the remaining active journalists, sorted by name.
+ */
+const FEATURED_JOURNALISTS: string[] = [];
 
 /** The section given its own desk on the homepage, below the front page. */
 const DESK_SLUG = "politics";
@@ -86,16 +92,13 @@ export default async function HomePage() {
   const picks =
     stats.publishedStories >= 3 ? oldestPosts.filter((post) => !shownIds.has(post.id)).slice(0, 2) : [];
   const videos = uniqueByPost(videoItems, 3);
-  // Active admins first, then by name, for the slider beside Top stories.
+  // Active admins first, then by name. Chosen usernames take the first slots.
   const admins = [...adminProfiles].sort((a, b) => {
     if (a.status !== b.status) return a.status === "ACTIVE" ? -1 : 1;
     return a.displayName.localeCompare(b.displayName);
   });
-  // A few recent stories per active admin, shown as small cards under their slide.
-  const adminPosts = await Promise.all(
-    admins.map((admin) => (admin.status === "ACTIVE" ? getPostsByAuthor(admin.id) : Promise.resolve([]))),
-  );
-  const postsByAdmin = Object.fromEntries(admins.map((admin, index) => [admin.id, adminPosts[index].slice(0, 3)]));
+  const chosen = FEATURED_JOURNALISTS.flatMap((username) => admins.filter((admin) => admin.username === username));
+  const journalists = [...chosen, ...admins.filter((admin) => !chosen.includes(admin))].slice(0, 5);
 
   return (
     <>
@@ -108,14 +111,14 @@ export default async function HomePage() {
             <div
               className={clsx(
                 "lg:col-span-4",
-                admins.length > 0 ? "order-last lg:order-first" : "lg:col-span-12",
+                journalists.length > 0 ? "order-last lg:order-first" : "lg:col-span-12",
               )}
             >
               <StoryThumbList posts={frontStories} />
             </div>
-            {admins.length > 0 ? (
+            {journalists.length > 0 ? (
               <div className="lg:col-span-8">
-                <AdminSlider admins={admins} postsByAdmin={postsByAdmin} />
+                <FeaturedJournalists journalists={journalists} allJournalists={admins} />
               </div>
             ) : null}
           </div>

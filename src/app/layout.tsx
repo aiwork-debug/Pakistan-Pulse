@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Source_Serif_4 } from "next/font/google";
 import type { ReactNode } from "react";
-import { DemoBanner } from "@/components/ui/demo-banner";
 import { SITE_URL } from "@/lib/format";
 import { focusRing } from "@/lib/ui";
 import "./globals.css";
@@ -40,7 +39,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         >
           Skip to content
         </a>
-        <DemoBanner />
         {children}
       </body>
     </html>
