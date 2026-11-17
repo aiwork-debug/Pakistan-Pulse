@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Block, Category, PostStatus, ProfileStatus, Role } from "@/lib/types";
@@ -176,7 +177,7 @@ function createSeed(): DemoState {
     ["football", "Football", "Leagues, academies, and the growing women's game.", "sports"],
   ];
   const categories: Category[] = sections.map(([slug, name, description]) => ({
-    id: crypto.randomUUID(),
+    id: seedId("category", slug),
     slug,
     name,
     description,
@@ -184,7 +185,7 @@ function createSeed(): DemoState {
   }));
   for (const [slug, name, description, parentSlug] of subcategories) {
     categories.push({
-      id: crypto.randomUUID(),
+      id: seedId("category", slug),
       slug,
       name,
       description,
@@ -202,7 +203,7 @@ function createSeed(): DemoState {
     bio: string,
     avatarGradient: string,
   ): DemoProfile => ({
-    id: crypto.randomUUID(),
+    id: seedId("profile", email),
     email,
     username,
     displayName,
@@ -255,7 +256,7 @@ function createSeed(): DemoState {
     const coverImageUrl = demoPhoto(slug);
     const isPolitics = category === "politics" || categories.find((c) => c.slug === category)?.parentId === cat("politics");
     return {
-      id: crypto.randomUUID(),
+      id: seedId("post", slug),
       slug,
       title,
       dek,
@@ -541,4 +542,15 @@ function createSeed(): DemoState {
     ],
     nextAuditId: 6,
   };
+}
+
+/**
+ * Stable UUID-shaped id for seed data. Serverless hosts such as Vercel run several instances
+ * that cannot share .data/demo-store.json, so each one seeds its own copy. Random ids would
+ * differ per instance and the demo session cookie (a profile id) would stop matching, sending
+ * signed-in users back to /login. Hashing a fixed key gives every instance the same ids.
+ */
+function seedId(kind: string, key: string): string {
+  const hex = createHash("sha256").update(`pulse-demo:${kind}:${key}`).digest("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
